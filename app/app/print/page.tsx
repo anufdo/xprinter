@@ -8,11 +8,15 @@ export default function PrintPage() {
   const [status, setStatus] = useState<PrintStatus>("idle");
   const [error, setError] = useState<string>("");
 
+  // point directly to your local agent
+  const agentURL =
+    process.env.NEXT_PUBLIC_AGENT_URL || "http://localhost:3001/print";
+
   async function printTest() {
     setStatus("sending");
     setError("");
     try {
-      const res = await fetch("/api/print", {
+      const res = await fetch(agentURL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -25,11 +29,9 @@ export default function PrintPage() {
           cut: true
         })
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setStatus("error");
-        setError(json.error || res.statusText);
-        return;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || (json && json.error)) {
+        throw new Error(json?.error || res.statusText);
       }
       setStatus("printed");
     } catch (err: unknown) {
@@ -43,7 +45,7 @@ export default function PrintPage() {
     <main style={{ padding: 24 }}>
       <h1>Print Test</h1>
       <p style={{ marginTop: 8 }}>
-        This sends a print job to the <code>printer-agent</code> running on the LAN device.
+        This calls your local agent at <code>{agentURL}</code>.
       </p>
       <button onClick={printTest} style={{ padding: "8px 12px", marginTop: 12 }}>
         Print Test Receipt

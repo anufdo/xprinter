@@ -1,8 +1,24 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import net from "net";
 
 const app = express();
+
+// allow your cloud origin + local dev
+const allowed = [
+  "http://localhost:3000",
+  "https://xprinterlocalagent.netlify.app", // <-- your Netlify site
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    // allow same-origin/no-origin (e.g. curl or Postman)
+    if (!origin || allowed.includes(origin)) return cb(null, true);
+    return cb(new Error("CORS blocked: " + origin));
+  },
+  methods: ["POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
 app.use(express.json());
 
 const PRINTER_IP = process.env.PRINTER_IP || "192.168.1.123";
