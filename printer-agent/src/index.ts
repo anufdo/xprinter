@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import net from "net";
+import https from "https";
+import fs from "fs";
 
 const app = express();
 
@@ -24,6 +26,13 @@ app.use(express.json());
 const PRINTER_IP = process.env.PRINTER_IP || "192.168.1.123";
 const PRINTER_PORT = Number(process.env.PRINTER_PORT || 9100);
 const AGENT_PORT = Number(process.env.AGENT_PORT || 3001);
+
+function loadPEM(source: string) {
+  if (fs.existsSync(source)) {
+    return fs.readFileSync(source);
+  }
+  return source;
+}
 
 // --- ESC/POS byte helpers ---
 const ESC = 0x1b;
@@ -124,8 +133,33 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, printer: { ip: PRINTER_IP, port: PRINTER_PORT } });
 });
 
-app.listen(AGENT_PORT, () => {
-  console.log(
-    `[agent] listening on http://localhost:${AGENT_PORT} → ${PRINTER_IP}:${PRINTER_PORT}`
-  );
-});
+const tlsCert = process.env.AGENT_TLS_CERT;
+const tlsKey = process.env.AGENT_TLS_KEY;
+
+if (tlsCert && tlsKey) {
+  try {
+    const server = https.createServer(
+      {
+        cert: loadPEM(tlsCert),
+        key: loadPEM(tlsKey),
+      },
+      app
+    );
+
+    server.listen(AGENT_PORT, () => {
+      console.log(
+        `[agent] listening on https://localhost:${AGENT_PORT} → ${PRINTER_IP}:${PRINTER_PORT}`
+      );
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[agent] Failed to start HTTPS server: ${message}`);
+    process.exit(1);
+  }
+} else {
+  app.listen(AGENT_PORT, () => {
+    console.log(
+      `[agent] listening on http://localhost:${AGENT_PORT} → ${PRINTER_IP}:${PRINTER_PORT}`
+    );
+  });
+}
